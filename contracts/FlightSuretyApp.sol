@@ -72,6 +72,17 @@ contract FlightSuretyApp {
         _;
     }
 
+    modifier requireAirlineRegistered() {
+        require(
+            flightSuretyData.isAirline(msg.sender),
+            "Caller is Not Registered"
+        );
+    }
+
+    modifier requireIsAirlineFunded() {
+        require(flightSuretyData.isFunded(msg.sender), "Airline is Not Funded");
+    }
+
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
     /********************************************************************************************/
@@ -134,7 +145,18 @@ contract FlightSuretyApp {
      * @dev Register a future flight for insuring.
      *
      */
-    function registerFlight() external pure {}
+    function registerFlight(
+        string _flightCode,
+        string _flight,
+        uint256 _timeStamp
+    )
+        external
+        requireIsOperational
+        requireAirlineRegistered
+        requireIsAirlineFunded
+    {
+        flightSuretyData.registerFlight(_flightCode, _flight, _timeStamp);
+    }
 
     /**
      * @dev Called after oracle has updated flight status

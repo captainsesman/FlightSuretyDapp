@@ -29,6 +29,27 @@ contract FlightSuretyData {
         bool canVote;
     }
 
+    //FLIGHT DATA AND VARIABLES
+    mapping(bytes32 => Flight) private flights;
+    mapping(address => Passenger) private passengers;
+    address[] insuredPassengers = new address[](0);
+
+    struct Flight {
+        address airlineAddress;
+        string flight;
+        string statusCode;
+        bool isRegistered;
+        uint8 flightStatusCode;
+        uint256 updateTimeStamp;
+    }
+
+    struct Passenger {       
+        address passengerAddress;       
+        bool isInsured;     
+        uint256 insuredAmount; 
+        uint256 amountPayable;
+    }
+
     // CONSTANTS
     uint256 public constant INSURANCE_PRICE_LIMIT = 1 ether;
     uint256 public constant MIN_ANTE = 10 ether;
@@ -39,6 +60,12 @@ contract FlightSuretyData {
     event airlineRegistered(address airline);
     event voteAirlineQueue(address airline);
     event AirlineApproved(address _airline);
+    event AirlineFunded(address _airline);
+    event FlightRegistered(string _statusCode, address _airline, uint256 _timeStamp);
+    event PassengerInsured(address _passenger, string _flight, uint256 _timestamp, address _airline);
+    event AirlineFlightInsured(address _airline, unit256 total_insured);
+    event TransferSuccessful(address _insuree, uint256 _amount);
+
 
     /**
      * @dev Constructor
@@ -97,6 +124,12 @@ contract FlightSuretyData {
         _;
     }
 
+  // Define a modifier that checks if the paid amount is sufficient to cover the price
+    modifier amountEnough(address _passenger, uint256 _availableAmount) {
+        require(passengers[_passengers].amountPayable >= _availableAmount, ' Amount More than Available Balance');
+        _;
+    }
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -137,6 +170,15 @@ contract FlightSuretyData {
         return airlines[airlineAccount].isApproved;
     }
 
+    //Check If Airline is Funded
+    function isFunded(address airlineAccount) public view returns (bool) {
+        // require(
+        //     airlineAccount != contractOwner,
+        //     "'airlineAccount' must be a valid address."
+        // );
+        return airlines[airlineAccount].isFunded;
+    }
+
     function canVoteStatus(address airlineAccount) public view returns (bool) {
         // require(
         //     airlineAccount != contractOwner,
@@ -154,10 +196,16 @@ contract FlightSuretyData {
         operational = mode;
     }
 
-    //Confirm Airline Registration
+    //Sets isApproved True if  Airline Registered
     function setisApproved(address _airline) returns (bool) {
         airlines[_airline].isApproved = true;
         emit AirlineApproved(_airline);
+    }
+
+    //Set isFunded True if Airline Pays Funds Account
+    function setisFunded(address _airline) returns (bool) {
+        airlines[_airline].isFunded = true;
+        emit AirlineFunded(_airline);
     }
 
     //List of airlines that can vote
@@ -175,9 +223,23 @@ contract FlightSuretyData {
         return airlineVoteCount[_airline].length;
     }
 
-    //Resets and Removes Airline Once its Approved
-    function resetAirlineVotes(address _airline) external returns (uint256) {
+    //Resets and Removes  Once its Approved
+    function resetAirlineVotes(address _airline) external {
         delete (airlineVoteCount[_airline]);
+    }
+
+  //Resets Passenger Insurance for the Flight
+    function resetPassengerCredited(bytes32 flightKey) external  {
+        delete (insuredPassenger[flightKey]);
+    }
+  
+
+  function updateFlightStatusCode(String _flight, uint256 _timestamp, uint8 _statusCode) requireIsOperational external{ 
+        bytes32 key = getFlightKey(_msg.sender, _flight, _timeStamp);
+        flights[key].statusCode = _statusCode;
+        lights[key].updateTimeStamp =_timeStamp;
+        emit FlightStatusUpdated(_statusCode, _flight, _timestamp, msg.sender);
+
     }
 
     //Checks Duplicate Voting
@@ -244,21 +306,96 @@ contract FlightSuretyData {
     }
 
     /**
-     * @dev Buy insurance for a flight
+     * @dev Fund Insurance for Airlines
      *
      */
-    function buy() external payable {}
+    function airlineFundInsurance() external payable requireIsOperational {
+        contractOwner.transfer(msg.sender);
+        setisFunded(msg.sender);
+    }
 
     /**
-     *  @dev Credits payouts to insurees
+     * @dev Registration of Flight By Airlines
+     *
      */
-    function creditInsurees() external pure {}
+    function registerFlight(
+        string _flight,       
+        uint256 _timeStamp
+    ) external requireIsOperational {
+        bytes32 key = getFlightKey(msg.sender, _flightCode, _timeStamp);
+        flights[key] = Flight({
+            airlineAddress: msg.sender,
+            flight: _flight,
+            statusCode: "STATUS_CODE_UNKNOWN",
+            isRegistered: true,
+            updateTimeStamp: _timeStamp
+        });
+        emit FlightRegistered(_flight, msg.sender, _timeStamp)
+    }
 
+    /**
+     * @dev Buy insurance for a flight
+     * 
+     */
+    function buy(address _passenger, uint _amountPaid, string _flight, uint256 _timeStamp, address _airline) requireIsOperational external payable {
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timestamp);
+        insuredPassengers[flightKey].push(_passenger);      
+        contractOwner.transfer(_amountPaid);
+        passengers = Passenger({passengerAddress:_passenger, isInsured:true, balance:_amountPaid, amountPayable:0});
+        emit PassengerInsured(_passenger, _flight, _timestamp, _airline));
+    }
+
+    function updateFlightStatusCode(String _flight, uint256 _timestamp, uint8 _statusCode) requireIsOperational external{ 
+        bytes32 key = getFlightKey(_msg.sender, _flight, _timeStamp);
+        flights[key].statusCode = _statusCode;
+        lights[key].updateTimeStamp =_timeStamp;
+        emit FlightStatusUpdated(_statusCode, _flight, _timestamp, msg.sender);
+
+    }
+
+    function checkFlightStatus (address _airline, string _flight, uint256 _timestamp) requireIsOperational public view returns (uint8) {
+        bytes32 flightKey = getFlightKey(_airline, _flightCode, _timestamp);
+        return flights[flightKey].statusCode;
+        
+    }
+    /**
+     *  @dev Credits payouts to insurees
+        address passengerAddress;       
+        bool isInsured;     
+        uint256 insuredAmount; 
+        uint256 amountPayable;
+     */
+    function creditInsurees(address _airline, string _flight, uint256 _timeStamp) requireIsOperational external  {
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);        
+        address[]  memory insurees =  insuredPassengers[flightKey];
+        for (uint i = 0; i < insurees.length; i++) {            
+            require(insurees[i]==passengers[insurees[i]], 'Passenger Not Insured for this Flight'); 
+            uint insuredAmount = passengers[insurees[i]].insuredAmount;
+            uint amountPayable = insuredAmount.mul(3).div(2);
+            passengers[insurees[i]].amountPayable;          
+        }
+        resetPassengerCredited(flightKey)
+        emit AirlineFlightInsured(_airline, insurees.length )
+
+        }
+        
+ 
     /**
      *  @dev Transfers eligible payout funds to insuree
      *
      */
-    function pay() external pure {}
+    function pay(address _passenger uint256 _amount) external 
+      payable
+            requireIsOperational
+           amountEnough( _passenger, amount)
+            {
+             passengers[_passenger].amountPayable =  passengers[_passenger].amountPayable.sub(_amount);
+             _passenger.transfer(_amount);
+
+             emit TransferSuccessful(_passenger, _amount);
+            }
+
+
 
     /**
      * @dev Initial funding for the insurance. Unless there are too many delayed flights
