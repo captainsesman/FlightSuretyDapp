@@ -32,21 +32,20 @@ contract FlightSuretyData {
     //FLIGHT DATA AND VARIABLES
     mapping(bytes32 => Flight) private flights;
     mapping(address => Passenger) private passengers;
-    address[] insuredPassengers = new address[](0);
+    mapping(bytes32 => address[]) private insuredPassengers;
 
     struct Flight {
         address airlineAddress;
         string flight;
         string statusCode;
         bool isRegistered;
-        uint8 flightStatusCode;
         uint256 updateTimeStamp;
     }
 
-    struct Passenger {       
-        address passengerAddress;       
-        bool isInsured;     
-        uint256 insuredAmount; 
+    struct Passenger {
+        address passengerAddress;
+        bool isInsured;
+        uint256 insuredAmount;
         uint256 amountPayable;
     }
 
@@ -61,11 +60,25 @@ contract FlightSuretyData {
     event voteAirlineQueue(address airline);
     event AirlineApproved(address _airline);
     event AirlineFunded(address _airline);
-    event FlightRegistered(string _statusCode, address _airline, uint256 _timeStamp);
-    event PassengerInsured(address _passenger, string _flight, uint256 _timestamp, address _airline);
-    event AirlineFlightInsured(address _airline, unit256 total_insured);
+    event FlightRegistered(
+        string _statusCode,
+        address _airline,
+        uint256 _timeStamp
+    );
+    event PassengerInsured(
+        address _passenger,
+        string _flight,
+        uint256 _timestamp,
+        address _airline
+    );
+    event AirlineFlightInsured(address _airline, uint256 total_insured);
     event TransferSuccessful(address _insuree, uint256 _amount);
-
+    event FlightStatusUpdated(
+        string _statusCode,
+        string _flight,
+        uint256 _timestamp,
+        address _airline
+    );
 
     /**
      * @dev Constructor
@@ -124,9 +137,12 @@ contract FlightSuretyData {
         _;
     }
 
-  // Define a modifier that checks if the paid amount is sufficient to cover the price
+    // Define a modifier that checks if the paid amount is sufficient to cover the price
     modifier amountEnough(address _passenger, uint256 _availableAmount) {
-        require(passengers[_passengers].amountPayable >= _availableAmount, ' Amount More than Available Balance');
+        require(
+            passengers[_passenger].amountPayable >= _availableAmount,
+            " Amount More than Available Balance"
+        );
         _;
     }
 
@@ -197,29 +213,31 @@ contract FlightSuretyData {
     }
 
     //Sets isApproved True if  Airline Registered
-    function setisApproved(address _airline) returns (bool) {
+    function setisApproved(address _airline) external {
         airlines[_airline].isApproved = true;
         emit AirlineApproved(_airline);
     }
 
     //Set isFunded True if Airline Pays Funds Account
-    function setisFunded(address _airline) returns (bool) {
+    function setIsFunded(address _airline) public view {
         airlines[_airline].isFunded = true;
-        emit AirlineFunded(_airline);
     }
 
     //List of airlines that can vote
-
-    function getTotalAirlineCount() external returns (uint256) {
+    function getTotalAirlineCount() external view returns (uint256) {
         return airlinesTotalCount;
     }
 
-    function getTotalCanVoteAirlines() external returns (uint256) {
+    function getTotalCanVoteAirlines() external view returns (uint256) {
         return airlinesCanVote.length;
     }
 
     //Retrieves the total votes an Airline gets
-    function getAirlineVoteCount(address _airline) external returns (uint256) {
+    function getAirlineVoteCount(address _airline)
+        external
+        view
+        returns (uint256)
+    {
         return airlineVoteCount[_airline].length;
     }
 
@@ -228,18 +246,20 @@ contract FlightSuretyData {
         delete (airlineVoteCount[_airline]);
     }
 
-  //Resets Passenger Insurance for the Flight
-    function resetPassengerCredited(bytes32 flightKey) external  {
-        delete (insuredPassenger[flightKey]);
-    }
-  
+    //Resets Passenger Insurance for the Flight
+    // function resetPassengerCredited(bytes32 flightKey) external {
+    //     delete (insuredPassengers[flightKey]);
+    // }
 
-  function updateFlightStatusCode(String _flight, uint256 _timestamp, uint8 _statusCode) requireIsOperational external{ 
-        bytes32 key = getFlightKey(_msg.sender, _flight, _timeStamp);
-        flights[key].statusCode = _statusCode;
-        lights[key].updateTimeStamp =_timeStamp;
-        emit FlightStatusUpdated(_statusCode, _flight, _timestamp, msg.sender);
-
+    function updateFlightStatusCode(
+        string _flight,
+        uint256 _timeStamp,
+        string _statusCode
+    ) external requireIsOperational {
+        bytes32 flightKey = getFlightKey(msg.sender, _flight, _timeStamp);
+        flights[flightKey].statusCode = _statusCode;
+        flights[flightKey].updateTimeStamp = _timeStamp;
+        emit FlightStatusUpdated(_statusCode, _flight, _timeStamp, msg.sender);
     }
 
     //Checks Duplicate Voting
@@ -309,9 +329,9 @@ contract FlightSuretyData {
      * @dev Fund Insurance for Airlines
      *
      */
-    function airlineFundInsurance() external payable requireIsOperational {
-        contractOwner.transfer(msg.sender);
-        setisFunded(msg.sender);
+    function airlineFundInsurance() public payable requireIsOperational {
+        contractOwner.transfer(msg.value);
+        setIsFunded(msg.sender);
     }
 
     /**
@@ -319,83 +339,94 @@ contract FlightSuretyData {
      *
      */
     function registerFlight(
-        string _flight,       
+        address _airline,
+        string _flight,
         uint256 _timeStamp
     ) external requireIsOperational {
-        bytes32 key = getFlightKey(msg.sender, _flightCode, _timeStamp);
-        flights[key] = Flight({
-            airlineAddress: msg.sender,
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);
+        flights[flightKey] = Flight({
+            airlineAddress: _airline,
             flight: _flight,
             statusCode: "STATUS_CODE_UNKNOWN",
             isRegistered: true,
             updateTimeStamp: _timeStamp
         });
-        emit FlightRegistered(_flight, msg.sender, _timeStamp)
+        emit FlightRegistered(_flight, _airline, _timeStamp);
     }
 
     /**
      * @dev Buy insurance for a flight
-     * 
+     *
      */
-    function buy(address _passenger, uint _amountPaid, string _flight, uint256 _timeStamp, address _airline) requireIsOperational external payable {
-        bytes32 flightKey = getFlightKey(_airline, _flight, _timestamp);
-        insuredPassengers[flightKey].push(_passenger);      
+    function buy(
+        address _passenger,
+        uint256 _amountPaid,
+        string _flight,
+        uint256 _timeStamp,
+        address _airline
+    ) external payable requireIsOperational {
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);
+        insuredPassengers[flightKey].push(_passenger);
         contractOwner.transfer(_amountPaid);
-        passengers = Passenger({passengerAddress:_passenger, isInsured:true, balance:_amountPaid, amountPayable:0});
-        emit PassengerInsured(_passenger, _flight, _timestamp, _airline));
+
+        passengers[_passenger] = Passenger({
+            passengerAddress: _passenger,
+            isInsured: true,
+            insuredAmount: _amountPaid,
+            amountPayable: 0
+        });
+        emit PassengerInsured(_passenger, _flight, _timeStamp, _airline);
     }
 
-    function updateFlightStatusCode(String _flight, uint256 _timestamp, uint8 _statusCode) requireIsOperational external{ 
-        bytes32 key = getFlightKey(_msg.sender, _flight, _timeStamp);
-        flights[key].statusCode = _statusCode;
-        lights[key].updateTimeStamp =_timeStamp;
-        emit FlightStatusUpdated(_statusCode, _flight, _timestamp, msg.sender);
-
+    function checkFlightRegistrationStatus(
+        address _airline,
+        string _flight,
+        uint256 _timestamp
+    ) public view requireIsOperational returns (bool) {
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timestamp);
+        return flights[flightKey].isRegistered;
     }
 
-    function checkFlightStatus (address _airline, string _flight, uint256 _timestamp) requireIsOperational public view returns (uint8) {
-        bytes32 flightKey = getFlightKey(_airline, _flightCode, _timestamp);
-        return flights[flightKey].statusCode;
-        
-    }
     /**
      *  @dev Credits payouts to insurees
-        address passengerAddress;       
-        bool isInsured;     
-        uint256 insuredAmount; 
-        uint256 amountPayable;
      */
-    function creditInsurees(address _airline, string _flight, uint256 _timeStamp) requireIsOperational external  {
-        bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);        
-        address[]  memory insurees =  insuredPassengers[flightKey];
-        for (uint i = 0; i < insurees.length; i++) {            
-            require(insurees[i]==passengers[insurees[i]], 'Passenger Not Insured for this Flight'); 
-            uint insuredAmount = passengers[insurees[i]].insuredAmount;
-            uint amountPayable = insuredAmount.mul(3).div(2);
-            passengers[insurees[i]].amountPayable;          
+    function creditInsurees(
+        address _airline,
+        string _flight,
+        uint256 _timeStamp
+    ) external requireIsOperational {
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);
+        address[] memory insurees = insuredPassengers[flightKey];
+        for (uint256 i = 0; i < insurees.length; i++) {
+            require(
+                insurees[i] == passengers[insurees[i]].passengerAddress,
+                "Passenger Not Insured for this Flight"
+            );
+            uint256 insuredAmount = passengers[insurees[i]].insuredAmount;
+            uint256 amountPayable = insuredAmount.mul(3).div(2);
+            passengers[insurees[i]].amountPayable = amountPayable;
         }
-        resetPassengerCredited(flightKey)
-        emit AirlineFlightInsured(_airline, insurees.length )
+        delete (insuredPassengers[flightKey]);
+        emit AirlineFlightInsured(_airline, insurees.length);
+    }
 
-        }
-        
- 
     /**
      *  @dev Transfers eligible payout funds to insuree
      *
      */
-    function pay(address _passenger uint256 _amount) external 
-      payable
-            requireIsOperational
-           amountEnough( _passenger, amount)
-            {
-             passengers[_passenger].amountPayable =  passengers[_passenger].amountPayable.sub(_amount);
-             _passenger.transfer(_amount);
+    function pay(address _passenger, uint256 _amount)
+        external
+        payable
+        requireIsOperational
+        amountEnough(_passenger, _amount)
+    {
+        passengers[_passenger].amountPayable = passengers[_passenger]
+            .amountPayable
+            .sub(_amount);
+        _passenger.transfer(_amount);
 
-             emit TransferSuccessful(_passenger, _amount);
-            }
-
-
+        emit TransferSuccessful(_passenger, _amount);
+    }
 
     /**
      * @dev Initial funding for the insurance. Unless there are too many delayed flights

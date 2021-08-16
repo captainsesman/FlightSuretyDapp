@@ -104,7 +104,7 @@ contract('Flight Surety Tests', async (accounts) => {
       let secondAirline = accounts[3];
       let thirdAirline = accounts[4];
       let fourthAirline = accounts[5];
-      let fifthAirline = accounts[5];
+      let fifthAirline = accounts[6];
           
     // ACT
     try {
@@ -118,49 +118,79 @@ contract('Flight Surety Tests', async (accounts) => {
 
     }   
             
-    await config.flightSuretyApp.approveAirlineRegistration(fifthAirline,  {from:newAirline})
-    await config.flightSuretyApp.approveAirlineRegistration(fifthAirline, {from:secondAirline})
+    //await config.flightSuretyApp.approveAirlineRegistration(fifthAirline,  {from:newAirline})
+   // await config.flightSuretyApp.approveAirlineRegistration(fifthAirline, {from:secondAirline})
 
 
-    let result1 = await config.flightSuretyData.canVoteStatus.call(newAirline);    
-    console.log('Airline Can Vote Status for Airline 1 ' + result1);
-    console.log("----------------------------------------------------------------------");
-    
+    let result1 = await config.flightSuretyData.canVoteStatus.call(newAirline);       
     let result2 = await config.flightSuretyData.canVoteStatus.call(secondAirline);
-    console.log('Airline Can Vote Status for Airline 2 ' + result2);
-    console.log("----------------------------------------------------------------------");
-    
     let result3= await config.flightSuretyData.canVoteStatus.call(thirdAirline);
-    console.log('Airline Can Vote Status for Airline 3 ' + result3);
-   console.log("----------------------------------------------------------------------");
-    
     let result4= await config.flightSuretyData.canVoteStatus.call(fourthAirline);
-    console.log('Airline Can Vote Status for Airline 4 ' + result4);
-     console.log("----------------------------------------------------------------------");
-    
     let result5 = await config.flightSuretyData.isApprovedStatus.call(fifthAirline);
-    console.log('Airline Can Vote Status for Airline 5 ' + result5);
-    console.log("----------------------------------------------------------------------");
-    
     let result = await config.flightSuretyData. getAirlineVoteCount.call(fifthAirline);      
-    console.log('Voting Count ' + result);
-    console.log("----------------------------------------------------------------------");
-    
-
-    let result44 = await config.flightSuretyData. getTotalCanVoteAirlines.call();      
-    console.log('Total Airlines Can Vote  ' + result44);
-    console.log("----------------------------------------------------------------------");
-    
+    let result44 = await config.flightSuretyData. getTotalCanVoteAirlines.call(); 
     let result9 = await config.flightSuretyData.isApprovedStatus.call(fifthAirline);
-    console.log('Airline Can Vote Status for Airline 9 ' + result9);
-    console.log("----------------------------------------------------------------------");
-    
+  
     // ASSERT
-    //assert.equal(result, true, " Airline is Not Approved");
+   // assert.equal( result5, true, " Airline is Not Approved");
 
   });
     
+  
+  it('(airline) Can Register Flights ', async () => {
     
+    // ARRANGE
+      // let newAirline = accounts[2];
+       let secondAirline = accounts[3];
+     let thirdAirline = accounts[4];
+    let contractOwner = accounts[0];
+    let contractOwner2 = accounts[1];
+
+    let fifthAirline = accounts[6];
+
+    let seedPrice = web3.utils.toWei("10", "ether");
+
+    let bal = await web3.eth.getBalance(contractOwner);
+    console.log(' Beginning Balance of Contract Address ' + bal);
+    console.log("___________________________________________");
+    
+    let readHello
+    // ACT
+    try {
+
+       
+      await config.flightSuretyData.airlineFundInsurance({from: secondAirline, value:seedPrice})
+      await config.flightSuretyData.airlineFundInsurance({ from: contractOwner2, value: seedPrice })
+    
+      
+      //await config.flightSuretyApp.registerFlight(fifth, 'Swick304', 12324, {from:fifth});
+      
+    }
+    catch(e) {
+
+
+    }   
+  
+   
+    let result =await web3.eth.getBalance(contractOwner);
+    let result3 = await config.flightSuretyData.isApprovedStatus.call(fifth)
+
+  
+
+    console.log(' Current Balance of Contract Address '+ result);
+    console.log("___________________________________________");
+
+
+
+    
+
+    
+
+
+    // ASSERT
+    //assert.equal(result, true, "Airline should not be able to register a flight if it hasn't provided funding");
+
+  });
   
  
 

@@ -77,10 +77,12 @@ contract FlightSuretyApp {
             flightSuretyData.isAirline(msg.sender),
             "Caller is Not Registered"
         );
+        _;
     }
 
     modifier requireIsAirlineFunded() {
         require(flightSuretyData.isFunded(msg.sender), "Airline is Not Funded");
+        _;
     }
 
     /********************************************************************************************/
@@ -142,11 +144,29 @@ contract FlightSuretyApp {
     }
 
     /**
+     * @dev Fund Account.
+     *
+     */
+
+    function airlineFundInsurance()
+        external
+        payable
+        requireIsOperational
+        requireAirlineRegistered
+    {
+        require(
+            flightSuretyData.isApprovedStatus(msg.sender),
+            "Airline Must Be Approved By Consensus Before It Can Fund"
+        );
+        flightSuretyData.airlineFundInsurance();
+    }
+
+    /**
      * @dev Register a future flight for insuring.
      *
      */
     function registerFlight(
-        string _flightCode,
+        address _airline,
         string _flight,
         uint256 _timeStamp
     )
@@ -155,7 +175,7 @@ contract FlightSuretyApp {
         requireAirlineRegistered
         requireIsAirlineFunded
     {
-        flightSuretyData.registerFlight(_flightCode, _flight, _timeStamp);
+        flightSuretyData.registerFlight(_airline, _flight, _timeStamp);
     }
 
     /**
