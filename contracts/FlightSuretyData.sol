@@ -187,7 +187,7 @@ contract FlightSuretyData {
     }
 
     //Check If Airline is Funded
-    function isFunded(address airlineAccount) public view returns (bool) {
+    function isFunded(address airlineAccount) public returns (bool) {
         // require(
         //     airlineAccount != contractOwner,
         //     "'airlineAccount' must be a valid address."
@@ -196,10 +196,6 @@ contract FlightSuretyData {
     }
 
     function canVoteStatus(address airlineAccount) public view returns (bool) {
-        // require(
-        //     airlineAccount != contractOwner,
-        //     "'airlineAccount' must be a valid address."
-        // );
         return airlines[airlineAccount].canVote;
     }
 
@@ -246,20 +242,41 @@ contract FlightSuretyData {
         delete (airlineVoteCount[_airline]);
     }
 
+    function passengerIsInsured(address _passenger) public view returns (bool) {
+        return passengers[_passenger].isInsured;
+    }
+
+    function getInsuredAmount(address _passenger)
+        public
+        view
+        returns (uint256)
+    {
+        return passengers[_passenger].insuredAmount;
+    }
+
+    function getAmountPayable(address _passenger)
+        public
+        view
+        returns (uint256)
+    {
+        return passengers[_passenger].amountPayable;
+    }
+
     //Resets Passenger Insurance for the Flight
     // function resetPassengerCredited(bytes32 flightKey) external {
     //     delete (insuredPassengers[flightKey]);
     // }
 
     function updateFlightStatusCode(
+        address _airline,
         string _flight,
         uint256 _timeStamp,
         string _statusCode
     ) external requireIsOperational {
-        bytes32 flightKey = getFlightKey(msg.sender, _flight, _timeStamp);
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);
         flights[flightKey].statusCode = _statusCode;
         flights[flightKey].updateTimeStamp = _timeStamp;
-        emit FlightStatusUpdated(_statusCode, _flight, _timeStamp, msg.sender);
+        emit FlightStatusUpdated(_statusCode, _flight, _timeStamp, _airline);
     }
 
     //Checks Duplicate Voting
@@ -360,21 +377,20 @@ contract FlightSuretyData {
      */
     function buy(
         address _passenger,
-        uint256 _amountPaid,
         string _flight,
         uint256 _timeStamp,
         address _airline
-    ) external payable requireIsOperational {
+    ) public payable requireIsOperational {
         bytes32 flightKey = getFlightKey(_airline, _flight, _timeStamp);
         insuredPassengers[flightKey].push(_passenger);
-        contractOwner.transfer(_amountPaid);
-
+        contractOwner.transfer(msg.value);
         passengers[_passenger] = Passenger({
             passengerAddress: _passenger,
             isInsured: true,
-            insuredAmount: _amountPaid,
+            insuredAmount: 1,
             amountPayable: 0
         });
+
         emit PassengerInsured(_passenger, _flight, _timeStamp, _airline);
     }
 
@@ -385,6 +401,15 @@ contract FlightSuretyData {
     ) public view requireIsOperational returns (bool) {
         bytes32 flightKey = getFlightKey(_airline, _flight, _timestamp);
         return flights[flightKey].isRegistered;
+    }
+
+    function checkFlightStatusCode(
+        address _airline,
+        string _flight,
+        uint256 _timestamp
+    ) public view requireIsOperational returns (string) {
+        bytes32 flightKey = getFlightKey(_airline, _flight, _timestamp);
+        return flights[flightKey].statusCode;
     }
 
     /**
@@ -403,8 +428,8 @@ contract FlightSuretyData {
                 "Passenger Not Insured for this Flight"
             );
             uint256 insuredAmount = passengers[insurees[i]].insuredAmount;
-            uint256 amountPayable = insuredAmount.mul(3).div(2);
-            passengers[insurees[i]].amountPayable = amountPayable;
+            uint256 amountToBePaid = insuredAmount.mul(3).div(2);
+            passengers[insurees[i]].amountPayable = amountToBePaid;
         }
         delete (insuredPassengers[flightKey]);
         emit AirlineFlightInsured(_airline, insurees.length);

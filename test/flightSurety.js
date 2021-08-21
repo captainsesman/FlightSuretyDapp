@@ -118,8 +118,8 @@ contract('Flight Surety Tests', async (accounts) => {
 
     }   
             
-    //await config.flightSuretyApp.approveAirlineRegistration(fifthAirline,  {from:newAirline})
-   // await config.flightSuretyApp.approveAirlineRegistration(fifthAirline, {from:secondAirline})
+    await config.flightSuretyApp.approveAirlineRegistration(fifthAirline,  {from:newAirline})
+    await config.flightSuretyApp.approveAirlineRegistration(fifthAirline, {from:secondAirline})
 
 
     let result1 = await config.flightSuretyData.canVoteStatus.call(newAirline);       
@@ -132,63 +132,129 @@ contract('Flight Surety Tests', async (accounts) => {
     let result9 = await config.flightSuretyData.isApprovedStatus.call(fifthAirline);
   
     // ASSERT
-   // assert.equal( result5, true, " Airline is Not Approved");
+    assert.equal( result5, true, " Airline is Not Approved");
 
   });
     
   
-  it('(airline) Can Register Flights ', async () => {
+  it('(airline) Can Fund Account ', async () => {
     
     // ARRANGE
       // let newAirline = accounts[2];
-       let secondAirline = accounts[3];
-     let thirdAirline = accounts[4];
-    let contractOwner = accounts[0];
-    let contractOwner2 = accounts[1];
-
+    let secondAirline = accounts[3];   
     let fifthAirline = accounts[6];
 
     let seedPrice = web3.utils.toWei("10", "ether");
-
-    let bal = await web3.eth.getBalance(contractOwner);
-    console.log(' Beginning Balance of Contract Address ' + bal);
-    console.log("___________________________________________");
     
-    let readHello
     // ACT
     try {
 
-       
       await config.flightSuretyData.airlineFundInsurance({from: secondAirline, value:seedPrice})
-      await config.flightSuretyData.airlineFundInsurance({ from: contractOwner2, value: seedPrice })
-    
-      
-      //await config.flightSuretyApp.registerFlight(fifth, 'Swick304', 12324, {from:fifth});
+      await config.flightSuretyData.airlineFundInsurance({ from: fifthAirline, value: seedPrice })    
       
     }
     catch(e) {
-
-
     }   
+       
+    let result = await config.flightSuretyData.isFunded.call(fifthAirline)
+    
+    //ASSERT
+    assert.equal(result, true, "Airline should Not Be allowed to Register Flight If Not Funded ");
+
+  });
+
+  it('(airline) Register Flight ', async () => {
+    
+    // ARRANGE       
+    let registered_airline = accounts[6];       
+    // ACT
+    try {
+
+      await config.flightSuretyApp.registerFlight(registered_airline, 'Boeing404', 2345, {from:registered_airline});
+      
+    }
+    catch(e) {
+    }   
+       
+    let result = await config.flightSuretyData.checkFlightRegistrationStatus.call(registered_airline, 'Boeing404', 2345)
+    
+    //ASSERT
+    assert.equal(result, true, "Only Registered and Funded Airlines Can Register Flight ");
+
+  });
   
-   
-    let result =await web3.eth.getBalance(contractOwner);
-    let result3 = await config.flightSuretyData.isApprovedStatus.call(fifth)
-
   
+  it('(Passenger) Can Be Insured  ', async () => {
+    
+    // ARRANGE       
+    let registered_airline = accounts[6];
+    let passenger = accounts[9];   
+    let insurancePrice = web3.utils.toWei("1", "ether");
+    // ACT
+    try {
+      await config.flightSuretyData.buy(passenger,'Boeing404', 2345, registered_airline, {from: passenger, value:insurancePrice, gas: 6721975,
+                gasPrice: 20000000000});      
+    }
+    catch (e) {
+      
+       console.log("error from Testing Passenger Can Be Insured ", e);
+    }          
+ 
+    //Insured Check InsuredAmount   
+    let insuredAmount = await config.flightSuretyData.getInsuredAmount.call(passenger)
+    console.log('Insured Amount in Ether '+insuredAmount);
+ 
+    //ASSERT
+    assert.equal(insuredAmount, 1, "Customer Must Pay 1 Ether to be Insured ");    
 
-    console.log(' Current Balance of Contract Address '+ result);
-    console.log("___________________________________________");
-
+  });
 
 
     
-
+  it('Can Credit Insuree  ', async () => {
     
+    // ARRANGE       
+    let registered_airline = accounts[6];
+    let passenger = accounts[9];   
+    let insurancePrice = web3.utils.toWei("1", "ether");
+    const statusCode = 'STATUS_CODE_LATE_TECHNICAL';
+    // ACT
+    try {
+      await config.flightSuretyData.updateFlightStatusCode(registered_airline,'Boeing404', 2345, 'STATUS_CODE_LATE_TECHNICAL');      
+    }
+    catch (e) {
+      
+       console.log("error from Testing Can Credit Insuree ", e);
+    }          
+ 
+    //Insured Check InsuredAmount   
+    let compareStatus = await config.flightSuretyData.checkFlightStatusCode.call(registered_airline, 'Boeing404', 2345);
+    if (statusCode === compareStatus) {
+      await config.flightSuretyApp.creditInsuree(registered_airline, 'Boeing404', 2345)
+    }
+    let amount = await config.flightSuretyData.getAmountPayable.call(passenger);    
+    let result =  insurancePrice * 1.5;
+    //ASSERT
+   assert.equal(amountPaid, result, "Passenger Credited");    
+
+  });
 
 
-    // ASSERT
-    //assert.equal(result, true, "Airline should not be able to register a flight if it hasn't provided funding");
+  it('Can Withdraw Amount  ', async () => {
+    
+    // ARRANGE          
+    let passenger = accounts[9];   
+       
+    let amount = await config.flightSuretyData.getAmountPayable.call(passenger); 
+
+    await config.flightSuretyData.pay(passenger, amount);
+    let newBalance = await config.flightSuretyData.getAmountPayable.call(passenger);
+    let result = false;
+    if (newBalance < amount) {
+      result = true;
+    }
+    //ASSERT
+   assert.equal(result, true, "Passenger Credited");    
 
   });
   

@@ -155,7 +155,7 @@ contract FlightSuretyApp {
         requireAirlineRegistered
     {
         require(
-            flightSuretyData.isApprovedStatus(msg.sender),
+            flightSuretyData.isApprovedStatus(msg.sender) == true,
             "Airline Must Be Approved By Consensus Before It Can Fund"
         );
         flightSuretyData.airlineFundInsurance();
@@ -176,6 +176,23 @@ contract FlightSuretyApp {
         requireIsAirlineFunded
     {
         flightSuretyData.registerFlight(_airline, _flight, _timeStamp);
+    }
+
+    function purchaseInsurance(
+        address _passenger,
+        string _flight,
+        uint256 _timeStamp,
+        address _airline
+    ) requireIsOperational {
+        flightSuretyData.buy(_passenger, _flight, _timeStamp, _airline);
+    }
+
+    function creditInsuree(
+        address _airline,
+        string _flight,
+        uint256 _timeStamp
+    ) requireIsOperational {
+        flightSuretyData.creditInsurees(_airline, _flight, _timeStamp);
     }
 
     /**
